@@ -1,0 +1,34 @@
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+.kotlin/
+
+# IDEs
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+.vscode/
+.classpath
+.project
+.settings/
+bin/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs / runtime
+*.log
+logs/
+hs_err_pid*.log
+
+# Local env / secrets
+.env
+.env.*
+!.env.example
+
+# Claude Code: commit shared skills/commands, ignore personal settings
+.claude/settings.local.json
