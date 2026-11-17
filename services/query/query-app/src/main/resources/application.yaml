@@ -1,0 +1,17 @@
+spring:
+  application:
+    name: query
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/ledger}
+    username: ${DB_USERNAME:query_user}
+    password: ${DB_PASSWORD:query_pass}
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+    # Tracking tables live in public with service-prefixed names: they must exist
+    # before the changelog runs, i.e. before schema "query" does.
+    liquibase-schema: public
+    database-change-log-table: query_databasechangelog
+    database-change-log-lock-table: query_databasechangeloglock
+
+server:
+  port: 8081

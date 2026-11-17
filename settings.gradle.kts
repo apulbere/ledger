@@ -1,0 +1,9 @@
+plugins {
+    id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
+}
+
+rootProject.name = "ledger"
+
+includeBuild("build-logic")
+includeBuild("services/journal")
+includeBuild("services/query")

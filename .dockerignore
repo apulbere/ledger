@@ -1,0 +1,9 @@
+.git
+.github
+.idea
+.claude
+openspec
+docs
+**/build
+**/.gradle
+**/.kotlin

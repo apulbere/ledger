@@ -1,0 +1,7 @@
+databaseChangeLog:
+  - changeSet:
+      id: create-schema-journal
+      author: ledger
+      changes:
+        - sql:
+            sql: CREATE SCHEMA IF NOT EXISTS journal

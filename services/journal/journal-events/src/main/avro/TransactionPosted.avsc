@@ -1,0 +1,7 @@
+{
+  "type": "record",
+  "name": "TransactionPosted",
+  "namespace": "ledger.journal.events",
+  "doc": "TBD via OpenSpec",
+  "fields": []
+}
