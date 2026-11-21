@@ -1,9 +1,11 @@
 """PreToolUse hook: block archiving an OpenSpec change whose living docs were not updated.
 
 Triggers on `openspec archive <name>` and on `mv openspec/changes/<name> .../archive/...`
-(what the opsx archive skill runs). If the proposal's "Docs impact" section is not "none",
-every doc path it names must exist (unless marked for deletion), be changed since the
-proposal was first committed (or in the working tree), and be linked from docs/README.md.
+(what the opsx archive skill runs). The proposal's "Docs impact" section must have a
+"- System:" and a "- Component:" bullet. Every doc path it names must exist (unless marked
+for deletion), be changed since the proposal was first committed (or in the working tree),
+and be linked from docs/README.md. If the change touched the deployment (docker-compose.yml),
+the container diagram must have changed too, whatever the Docs impact says.
 Exit 2 blocks the tool call and feeds stderr back to Claude.
 """
 
@@ -14,6 +16,9 @@ import sys
 from pathlib import Path
 
 DOC_PATH = re.compile(r"`((?:docs|services/[^/`]+/docs)/[^`]+\.md)`")
+LEVEL = re.compile(r"^\s*[-*]\s*\**(system|component)\**\s*:", re.I | re.M)
+DEPLOYMENT_FILES = ("docker-compose.yml",)
+CONTAINERS_DOC = "docs/architecture/containers.md"
 
 
 def change_name(command):
@@ -63,12 +68,16 @@ def main():
     if impact is None:
         print(f"{proposal_rel} has no '## Docs impact' section. Add one (or 'none' with a reason) before archiving.", file=sys.stderr)
         return 2
-    if impact.lower().startswith(("none", "- none")):
-        return 0
-
     changed = changed_files(root, proposal_rel)
     index = (root / "docs/README.md").read_text() if (root / "docs/README.md").exists() else ""
     problems = []
+    levels = {m.lower() for m in LEVEL.findall(impact)}
+    for level in ("System", "Component"):
+        if level.lower() not in levels:
+            problems.append(f"Docs impact has no '- {level}:' bullet (list docs, or 'none' with a reason)")
+    deployment = [f for f in DEPLOYMENT_FILES if f in changed]
+    if deployment and CONTAINERS_DOC not in changed:
+        problems.append(f"{', '.join(deployment)} changed but {CONTAINERS_DOC} did not")
     for line in impact.splitlines():
         deleting = re.search(r"\b(delete|remove)\b", line, re.I)
         for doc in DOC_PATH.findall(line):

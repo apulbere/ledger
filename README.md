@@ -2,7 +2,7 @@
 
 Double-entry ledger. `journal` (write side) and `query` (read side), connected by Debezium CDC over Kafka.
 
-Requires JDK 25 and Docker (the tests use Testcontainers).
+Requires JDK 27 and Docker (the tests use Testcontainers).
 
 ## Build
 
@@ -18,13 +18,14 @@ docker compose up --build   # Postgres, Kafka, Schema Registry, Kafka Connect, b
 docker compose down -v      # stop and wipe all data
 ```
 
-| Service         | Host port |
-|-----------------|-----------|
-| journal-app     | 8080      |
-| query-app       | 8081      |
-| postgres        | 5432      |
-| kafka           | 9092      |
-| schema-registry | 8085      |
-| kafka-connect   | 8083      |
+| Service          | Host port |
+|------------------|-----------|
+| journal-app      | 8080      |
+| query-app        | 8081      |
+| journal-postgres | 5432      |
+| query-postgres   | 5433      |
+| kafka            | 9092      |
+| schema-registry  | 8085      |
+| kafka-connect    | 8083      |
 
 Docs: [docs/README.md](docs/README.md). Changes are planned with OpenSpec in `openspec/`.

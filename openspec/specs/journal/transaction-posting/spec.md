@@ -1,10 +1,10 @@
-# Spec Delta
+# journal/transaction-posting Specification
 
 ## Purpose
 
 Lets upstream systems record balanced double-entry postings in the journal through a REST contract. Postings are append-only, idempotent and validated.
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: Record a posting
 The journal SHALL expose `POST /transactions` accepting a JSON posting with optional `referenceId` (≤128 chars, not unique, links related postings), `occurredAt` (RFC 3339 timestamp), `description` (≤500 chars), `metadata` (JSON object), and a required `entries` array. On success it SHALL respond `201 Created` with the recorded posting.
@@ -22,8 +22,19 @@ The journal SHALL expose `POST /transactions` accepting a JSON posting with opti
 - **WHEN** a valid posting omits `occurredAt`
 - **THEN** the recorded `occurredAt` equals its `postedAt`
 
+### Requirement: Malformed requests rejected
+A request body that does not follow the contract SHALL be rejected with `400` and code `MALFORMED_REQUEST`: an unknown field, a missing required field, a value of the wrong JSON type, or an envelope string over its length limit.
+
 #### Scenario: Unknown fields are rejected
 - **WHEN** the body contains a field that is not part of the contract (for example `kind`)
+- **THEN** the response is `400` with code `MALFORMED_REQUEST`
+
+#### Scenario: Over-long envelope field rejected
+- **WHEN** `referenceId` is longer than 128 characters or `description` longer than 500
+- **THEN** the response is `400` with code `MALFORMED_REQUEST`
+
+#### Scenario: Wrong JSON type rejected
+- **WHEN** an entry has `amount` "5000" (a string)
 - **THEN** the response is `400` with code `MALFORMED_REQUEST`
 
 ### Requirement: Entry shape
@@ -36,6 +47,10 @@ Each entry SHALL contain `accountId`, `direction` (`DEBIT` or `CREDIT`), `amount
 
 #### Scenario: Missing direction is rejected
 - **WHEN** an entry has no `direction` or a value other than `DEBIT`/`CREDIT`
+- **THEN** the response is `400` with code `MALFORMED_REQUEST`
+
+#### Scenario: Missing required entry field rejected
+- **WHEN** an entry omits `accountId`, `amount` or `currency`
 - **THEN** the response is `400` with code `MALFORMED_REQUEST`
 
 ### Requirement: Account id grammar determines account type
@@ -102,12 +117,24 @@ A posting SHALL contain at least two entries and at most 100. For each currency 
 - **WHEN** a posting has one entry
 - **THEN** the response is `422` with code `TOO_FEW_ENTRIES`
 
+#### Scenario: Too many entries rejected
+- **WHEN** a posting has 101 entries
+- **THEN** the response is `422` with code `TOO_MANY_ENTRIES`
+
 ### Requirement: Idempotency key is required
 Every `POST /transactions` SHALL carry an `Idempotency-Key` header of 1 to 255 printable ASCII characters. Keys are unique for the lifetime of the ledger, with no expiry.
 
 #### Scenario: Missing key rejected
 - **WHEN** a posting is sent without `Idempotency-Key`
 - **THEN** the response is `400` with code `MISSING_IDEMPOTENCY_KEY`
+
+#### Scenario: Empty key rejected
+- **WHEN** `Idempotency-Key` is present but empty
+- **THEN** the response is `400` with code `MISSING_IDEMPOTENCY_KEY`
+
+#### Scenario: Invalid key rejected
+- **WHEN** `Idempotency-Key` is longer than 255 characters or contains non-printable or non-ASCII characters
+- **THEN** the response is `400` with code `MALFORMED_REQUEST`
 
 ### Requirement: Duplicate idempotency key rejected
 A request whose `Idempotency-Key` is already recorded SHALL be rejected with `409` and code `IDEMPOTENCY_KEY_REUSED`, whatever its body, and SHALL record nothing. A `409` tells the client that a posting with that key already exists.
