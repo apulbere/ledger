@@ -13,7 +13,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
@@ -61,6 +64,22 @@ class PostingWebTest {
     }
 
     @Test
+    void optionalEnvelopeFieldsMayBeOmitted() throws Exception {
+        Instant now = Instant.parse("2026-11-20T10:15:30Z");
+        given(repository.record(eq("key-1"), any())).willReturn(
+                new RecordedPosting(UUID.ofEpochMillis(now.toEpochMilli()), now, now, List.of()));
+
+        send("key-1", """
+                {"entries": [
+                  {"accountId": "int_BANK_NOSTRO_EUR", "direction": "DEBIT", "amount": 5000, "currency": "EUR"},
+                  {"accountId": "int_SETTLEMENT_VISA", "direction": "CREDIT", "amount": 5000, "currency": "EUR"}
+                ]}
+                """)
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.versions").isEmpty());
+    }
+
+    @Test
     void unknownFieldIsMalformed() throws Exception {
         expectMalformed(VALID.replace("\"referenceId\"", "\"kind\": \"CARD\", \"referenceId\""));
     }
@@ -75,6 +94,20 @@ class PostingWebTest {
         expectMalformed(VALID.replace("\"amount\": 5000, \"currency\": \"EUR\"},", "\"amount\": \"5000\", \"currency\": \"EUR\"},"));
     }
 
+    // Text fields are never coerced from other JSON types: a number or boolean is a 400, not a later domain error.
+    @ParameterizedTest
+    @CsvSource(delimiter = '|', quoteCharacter = '\'', textBlock = """
+            "referenceId": "auth-1"              | "referenceId": 1
+            "description": "card payment"        | "description": true
+            "accountId": "int_SETTLEMENT_VISA"   | "accountId": 42
+            "bucket": "AVAILABLE"                | "bucket": 1
+            "currency": "EUR"}                   | "currency": 978}
+            "currency": "EUR"}                   | "currency": 9.78}
+            """)
+    void nonStringTextFieldIsMalformed(String valid, String wrongType) throws Exception {
+        expectMalformed(VALID.replaceFirst(Pattern.quote(valid), wrongType));
+    }
+
     @Test
     void missingDirectionIsMalformed() throws Exception {
         expectMalformed(VALID.replace("\"direction\": \"DEBIT\", ", ""));
@@ -86,6 +119,42 @@ class PostingWebTest {
     }
 
     @Test
+    void overlongReferenceIdIsMalformed() throws Exception {
+        expectMalformed(VALID.replace("\"auth-1\"", "\"" + "r".repeat(129) + "\""));
+    }
+
+    @Test
+    void overlongDescriptionIsMalformed() throws Exception {
+        expectMalformed(VALID.replace("\"card payment\"", "\"" + "d".repeat(501) + "\""));
+    }
+
+    @Test
+    void missingEntriesIsMalformed() throws Exception {
+        expectMalformed("{\"referenceId\": \"auth-1\"}");
+    }
+
+    @Test
+    void nullEntryIsMalformed() throws Exception {
+        expectMalformed(VALID.replace("\"entries\": [", "\"entries\": [null, "));
+    }
+
+    @Test
+    void missingAccountIdIsMalformed() throws Exception {
+        expectMalformed(VALID.replace("{\"accountId\": \"int_SETTLEMENT_VISA\", ", "{"));
+    }
+
+    @Test
+    void nullBucketOnInternalEntryIsMalformed() throws Exception {
+        expectMalformed(VALID.replace("{\"accountId\": \"int_SETTLEMENT_VISA\", ",
+                "{\"accountId\": \"int_SETTLEMENT_VISA\", \"bucket\": null, "));
+    }
+
+    @Test
+    void nullBucketOnCustomerEntryIsMalformed() throws Exception {
+        expectMalformed(VALID.replace("\"bucket\": \"AVAILABLE\"", "\"bucket\": null"));
+    }
+
+    @Test
     void invalidJsonIsMalformed() throws Exception {
         expectMalformed("{\"entries\": [");
     }
@@ -93,6 +162,7 @@ class PostingWebTest {
     @Test
     void missingIdempotencyKey() throws Exception {
         mvc.perform(post("/transactions").contentType(MediaType.APPLICATION_JSON).content(VALID))
+                .andDo(OpenApiContract.conforms())
                 .andExpect(status().isBadRequest())
                 .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.status").value(400))
@@ -142,7 +212,8 @@ class PostingWebTest {
         return mvc.perform(post("/transactions")
                 .header("Idempotency-Key", key)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(body));
+                .content(body))
+                .andDo(OpenApiContract.conforms());
     }
 
     private void expectMalformed(String body) throws Exception {

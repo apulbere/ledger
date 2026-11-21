@@ -1,0 +1,362 @@
+openapi: 3.0.3
+info:
+  title: Journal API
+  version: 1.0.0
+  description: |
+    Write side of the ledger: records balanced double-entry postings.
+    This document is hand-written and is the source of truth for the REST contract.
+    Tests validate real traffic against it, so a mismatch with the code fails the build.
+    Behaviour: openspec/specs/journal/transaction-posting and openspec/specs/journal/account-balances.
+
+paths:
+  /transactions:
+    post:
+      operationId: recordPosting
+      summary: Record a posting
+      description: |
+        Records an append-only, balanced posting and updates the affected customer balances atomically.
+        A request that does not follow this schema is rejected with `400`.
+        A request that follows it but breaks a business rule is rejected with `422`.
+        Some schema constraints (account id patterns, bucket values, amount range, entry count)
+        are reported as `422` with a domain code rather than `400`.
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: Unique for the lifetime of the ledger, with no expiry. A reused key gives `409`, whatever the body.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 255
+            pattern: '^[\x20-\x7E]+$'
+          example: 3f0c9a7e-5b1d-4e2a-9c8f-1d2e3f4a5b6c
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PostingRequest'
+            # Every example is posted by a test and must be recorded with 201.
+            # Balances use the customer's perspective: CREDIT increases a bucket, DEBIT decreases it.
+            # The card examples share a referenceId, which links the postings of one card payment.
+            examples:
+              topUp:
+                summary: Top-up from a bank transfer
+                description: Money arrives in the EUR nostro and becomes available to the customer.
+                value:
+                  referenceId: sepa-in-20261121-0042
+                  occurredAt: '2026-11-21T08:00:00Z'
+                  description: SEPA transfer in
+                  entries:
+                    - { accountId: cus_01jcz8k2m4f7r9t3vbx5w6y8za, bucket: AVAILABLE, direction: CREDIT, amount: 10000, currency: EUR }
+                    - { accountId: int_BANK_NOSTRO_EUR, direction: DEBIT, amount: 10000, currency: EUR }
+              cardAuthorization:
+                summary: Card authorization (hold)
+                description: |
+                  The card scheme authorizes 57.30 EUR. The money moves from AVAILABLE to HELD on the same customer.
+                  Nothing leaves the customer yet, so no internal account is involved.
+                value:
+                  referenceId: card-7f3a9c
+                  occurredAt: '2026-11-21T12:30:00Z'
+                  description: 'Authorization: Corner Grocery'
+                  metadata: { scheme: VISA, authCode: '831926', mcc: '5411', merchant: Corner Grocery }
+                  entries:
+                    - { accountId: cus_01jcz8k2m4f7r9t3vbx5w6y8za, bucket: AVAILABLE, direction: DEBIT, amount: 5730, currency: EUR }
+                    - { accountId: cus_01jcz8k2m4f7r9t3vbx5w6y8za, bucket: HELD, direction: CREDIT, amount: 5730, currency: EUR }
+              cardClearing:
+                summary: Card clearing for the authorized amount
+                description: |
+                  The scheme clears the 57.30 EUR authorized above. The hold is consumed and the money moves
+                  to the scheme settlement account, which is settled with VISA later.
+                value:
+                  referenceId: card-7f3a9c
+                  occurredAt: '2026-11-22T03:10:00Z'
+                  description: 'Clearing: Corner Grocery'
+                  metadata: { scheme: VISA, authCode: '831926' }
+                  entries:
+                    - { accountId: cus_01jcz8k2m4f7r9t3vbx5w6y8za, bucket: HELD, direction: DEBIT, amount: 5730, currency: EUR }
+                    - { accountId: int_SETTLEMENT_VISA, direction: CREDIT, amount: 5730, currency: EUR }
+              cardPartialClearing:
+                summary: Card clearing for less than authorized
+                description: |
+                  Alternative to cardClearing: only 50.00 EUR of the 57.30 EUR hold clears.
+                  The whole hold is consumed, 50.00 EUR goes to settlement and the remaining 7.30 EUR
+                  returns to AVAILABLE, all in one posting.
+                value:
+                  referenceId: card-7f3a9c
+                  occurredAt: '2026-11-22T03:10:00Z'
+                  description: 'Clearing: Corner Grocery (partial)'
+                  metadata: { scheme: VISA, authCode: '831926' }
+                  entries:
+                    - { accountId: cus_01jcz8k2m4f7r9t3vbx5w6y8za, bucket: HELD, direction: DEBIT, amount: 5730, currency: EUR }
+                    - { accountId: int_SETTLEMENT_VISA, direction: CREDIT, amount: 5000, currency: EUR }
+                    - { accountId: cus_01jcz8k2m4f7r9t3vbx5w6y8za, bucket: AVAILABLE, direction: CREDIT, amount: 730, currency: EUR }
+              authorizationReversal:
+                summary: Authorization reversal or expiry
+                description: Alternative to clearing. The authorization is reversed or expires, and the hold returns to AVAILABLE.
+                value:
+                  referenceId: card-7f3a9c
+                  occurredAt: '2026-11-28T12:30:00Z'
+                  description: 'Reversal: Corner Grocery'
+                  entries:
+                    - { accountId: cus_01jcz8k2m4f7r9t3vbx5w6y8za, bucket: HELD, direction: DEBIT, amount: 5730, currency: EUR }
+                    - { accountId: cus_01jcz8k2m4f7r9t3vbx5w6y8za, bucket: AVAILABLE, direction: CREDIT, amount: 5730, currency: EUR }
+              fxConversion:
+                summary: Currency conversion
+                description: |
+                  The customer converts 100.00 EUR to 110.00 USD. Each currency balances on its own, through the
+                  FX position accounts. One posting changes two customer balances, EUR and USD.
+                value:
+                  description: EUR to USD at 1.10
+                  metadata: { rate: '1.10' }
+                  entries:
+                    - { accountId: cus_01jcz8k2m4f7r9t3vbx5w6y8za, bucket: AVAILABLE, direction: DEBIT, amount: 10000, currency: EUR }
+                    - { accountId: int_FX_POSITION_EUR, direction: CREDIT, amount: 10000, currency: EUR }
+                    - { accountId: int_FX_POSITION_USD, direction: DEBIT, amount: 11000, currency: USD }
+                    - { accountId: cus_01jcz8k2m4f7r9t3vbx5w6y8za, bucket: AVAILABLE, direction: CREDIT, amount: 11000, currency: USD }
+      responses:
+        '201':
+          description: Posting recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Posting'
+        '400':
+          description: Malformed request, or missing `Idempotency-Key`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/BadRequestProblem'
+        '409':
+          description: A posting with this `Idempotency-Key` is already recorded. Nothing was recorded.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ConflictProblem'
+        '422':
+          description: The request breaks a posting rule. Nothing was recorded.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/UnprocessableProblem'
+
+components:
+  schemas:
+    AccountId:
+      type: string
+      description: |
+        `cus_` + a 26-character TypeID suffix (customer account) or
+        `int_` + an upper-case name (internal account). The account type is derived from the prefix.
+      pattern: '^(cus_[0-7][0-9a-hjkmnp-tv-z]{25}|int_[A-Z][A-Z0-9_]{2,63})$'
+      example: cus_01jcz8k2m4f7r9t3vbx5w6y8za
+
+    Currency:
+      type: string
+      description: ISO 4217 alphabetic code with minor units defined.
+      pattern: '^[A-Z]{3}$'
+      example: EUR
+
+    Amount:
+      type: integer
+      format: int64
+      description: Minor units of the entry's currency (5730 EUR = 57.30 EUR).
+      minimum: 1
+      maximum: 1000000000000000
+      example: 5000
+
+    Direction:
+      type: string
+      enum: [DEBIT, CREDIT]
+
+    Bucket:
+      type: string
+      description: Required on customer entries; must be omitted on internal entries. Never null.
+      enum: [AVAILABLE, HELD]
+
+    AccountType:
+      type: string
+      enum: [CUSTOMER, INTERNAL]
+
+    PostingRequest:
+      type: object
+      additionalProperties: false
+      required: [entries]
+      properties:
+        referenceId:
+          type: string
+          nullable: true
+          maxLength: 128
+          description: Not unique. Links related postings.
+          example: auth-1
+        occurredAt:
+          type: string
+          nullable: true
+          format: date-time
+          description: RFC 3339 timestamp. Defaults to `postedAt`.
+        description:
+          type: string
+          nullable: true
+          maxLength: 500
+          example: card payment
+        metadata:
+          type: object
+          nullable: true
+          additionalProperties: true
+          example: { mcc: '5411' }
+        entries:
+          type: array
+          minItems: 2
+          maxItems: 100
+          description: For each currency, the sum of DEBIT amounts must equal the sum of CREDIT amounts.
+          items:
+            $ref: '#/components/schemas/EntryRequest'
+
+    EntryRequest:
+      type: object
+      additionalProperties: false
+      required: [accountId, direction, amount, currency]
+      properties:
+        accountId:
+          $ref: '#/components/schemas/AccountId'
+        bucket:
+          $ref: '#/components/schemas/Bucket'
+        direction:
+          $ref: '#/components/schemas/Direction'
+        amount:
+          $ref: '#/components/schemas/Amount'
+        currency:
+          $ref: '#/components/schemas/Currency'
+
+    Posting:
+      type: object
+      additionalProperties: false
+      required: [id, referenceId, occurredAt, postedAt, description, metadata, entries, versions]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Server-assigned UUIDv7.
+        referenceId:
+          type: string
+          nullable: true
+        occurredAt:
+          type: string
+          format: date-time
+        postedAt:
+          type: string
+          format: date-time
+          description: Server-assigned.
+        description:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          nullable: true
+          additionalProperties: true
+        entries:
+          type: array
+          description: In request order.
+          items:
+            $ref: '#/components/schemas/Entry'
+        versions:
+          type: array
+          description: One item per customer balance the posting changed, with its version after the posting. Internal accounts never appear.
+          items:
+            $ref: '#/components/schemas/BalanceVersion'
+
+    Entry:
+      type: object
+      additionalProperties: false
+      required: [line, accountId, accountType, direction, amount, currency]
+      properties:
+        line:
+          type: integer
+          minimum: 1
+          description: 1-based position in the request.
+        accountId:
+          $ref: '#/components/schemas/AccountId'
+        accountType:
+          $ref: '#/components/schemas/AccountType'
+        bucket:
+          $ref: '#/components/schemas/Bucket'
+        direction:
+          $ref: '#/components/schemas/Direction'
+        amount:
+          $ref: '#/components/schemas/Amount'
+        currency:
+          $ref: '#/components/schemas/Currency'
+
+    BalanceVersion:
+      type: object
+      additionalProperties: false
+      required: [accountId, currency, version]
+      properties:
+        accountId:
+          $ref: '#/components/schemas/AccountId'
+        currency:
+          $ref: '#/components/schemas/Currency'
+        version:
+          type: integer
+          format: int64
+          minimum: 1
+
+    # RFC 9457 problem details. Each status has its own schema so `code` lists exactly the codes it can carry.
+    BadRequestProblem:
+      type: object
+      required: [title, status, code]
+      properties:
+        type: { type: string }
+        title: { type: string }
+        status: { type: integer, enum: [400] }
+        detail: { type: string }
+        instance: { type: string }
+        code:
+          type: string
+          enum: [MALFORMED_REQUEST, MISSING_IDEMPOTENCY_KEY]
+
+    ConflictProblem:
+      type: object
+      required: [title, status, code]
+      properties:
+        type: { type: string }
+        title: { type: string }
+        status: { type: integer, enum: [409] }
+        detail: { type: string }
+        instance: { type: string }
+        code:
+          type: string
+          enum: [IDEMPOTENCY_KEY_REUSED]
+
+    UnprocessableProblem:
+      type: object
+      required: [title, status, code]
+      properties:
+        type: { type: string }
+        title: { type: string }
+        status: { type: integer, enum: [422] }
+        detail: { type: string }
+        instance: { type: string }
+        code:
+          type: string
+          enum:
+            - INVALID_ACCOUNT_ID
+            - INVALID_BUCKET
+            - INVALID_AMOUNT
+            - UNKNOWN_CURRENCY
+            - UNBALANCED
+            - TOO_FEW_ENTRIES
+            - TOO_MANY_ENTRIES
+        line:
+          type: integer
+          minimum: 1
+          description: The offending entry, for entry-level problems.
+        currency:
+          $ref: '#/components/schemas/Currency'
+        debits:
+          type: integer
+          format: int64
+          description: UNBALANCED only. Sum of DEBIT amounts in `currency`.
+        credits:
+          type: integer
+          format: int64
+          description: UNBALANCED only. Sum of CREDIT amounts in `currency`.

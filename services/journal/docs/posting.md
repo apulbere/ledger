@@ -1,6 +1,6 @@
 # Posting
 
-Behaviour: [transaction-posting](../../../openspec/specs/journal/transaction-posting/spec.md). Tables: [data model](data-model.md).
+Behaviour: [transaction-posting](../../../openspec/specs/journal/transaction-posting/spec.md). Contract: [OpenAPI](../journal-app/src/main/openapi/openapi.yaml). Tables: [data model](data-model.md).
 
 ```mermaid
 sequenceDiagram

@@ -1,10 +1,12 @@
 package ledger.journal.posting;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
@@ -55,7 +57,14 @@ abstract class PostingApiSupport {
     }
 
     Response post(String idempotencyKey, PostingRequest request) {
-        return post(idempotencyKey, jsonMapper.writeValueAsString(request));
+        return post(idempotencyKey, nonNullWriter().writeValueAsString(request));
+    }
+
+    // Fixtures use null for "absent"; a client omits those fields (an explicit null bucket is malformed).
+    private JsonMapper nonNullWriter() {
+        return jsonMapper.rebuild()
+                .changeDefaultPropertyInclusion(incl -> incl.withValueInclusion(JsonInclude.Include.NON_NULL))
+                .build();
     }
 
     Response post(String idempotencyKey, String body) {
@@ -66,6 +75,9 @@ abstract class PostingApiSupport {
                 .build();
         try {
             HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
+            OpenApiContract.check("POST", "/transactions",
+                    Map.of("Content-Type", "application/json", "Idempotency-Key", idempotencyKey), body,
+                    response.statusCode(), response.headers().firstValue("Content-Type").orElse(null), response.body());
             return new Response(response.statusCode(), jsonMapper.readTree(response.body()));
         } catch (Exception e) {
             throw new IllegalStateException(e);

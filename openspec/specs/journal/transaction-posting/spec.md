@@ -37,6 +37,10 @@ A request body that does not follow the contract SHALL be rejected with `400` an
 - **WHEN** an entry has `amount` "5000" (a string)
 - **THEN** the response is `400` with code `MALFORMED_REQUEST`
 
+#### Scenario: Number in a text field rejected
+- **WHEN** an entry has `currency` 978 or `bucket` 1, or the envelope has `referenceId` 1 (a number, not a string)
+- **THEN** the response is `400` with code `MALFORMED_REQUEST`, not a domain error
+
 ### Requirement: Entry shape
 Each entry SHALL contain `accountId`, `direction` (`DEBIT` or `CREDIT`), `amount` and `currency`, plus `bucket` when required by the account type. In the response, each entry SHALL also carry its 1-based `line` (its position in the request) and the derived `accountType`.
 
@@ -69,7 +73,7 @@ An `accountId` SHALL be either `cus_` followed by a 26-character TypeID suffix (
 - **THEN** the response is `422` with code `INVALID_ACCOUNT_ID` identifying the entry
 
 ### Requirement: Buckets on customer entries
-An entry for a customer account SHALL carry `bucket` with value `AVAILABLE` or `HELD`. An entry for an internal account SHALL NOT carry `bucket`.
+An entry for a customer account SHALL carry `bucket` with value `AVAILABLE` or `HELD`. An entry for an internal account SHALL NOT carry `bucket`. `bucket` SHALL never be `null`: an explicit `null` is rejected with `400` and code `MALFORMED_REQUEST`, whatever the account type.
 
 #### Scenario: Customer entry without bucket rejected
 - **WHEN** a `cus_` entry omits `bucket`
@@ -78,6 +82,10 @@ An entry for a customer account SHALL carry `bucket` with value `AVAILABLE` or `
 #### Scenario: Internal entry with bucket rejected
 - **WHEN** an `int_` entry carries `bucket`
 - **THEN** the response is `422` with code `INVALID_BUCKET`
+
+#### Scenario: Null bucket rejected
+- **WHEN** a `cus_` or `int_` entry carries `bucket` `null`
+- **THEN** the response is `400` with code `MALFORMED_REQUEST`
 
 #### Scenario: Unknown bucket value rejected
 - **WHEN** a `cus_` entry has `bucket` `PENDING`
