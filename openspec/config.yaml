@@ -3,28 +3,30 @@ schema: spec-driven
 context: |
   Living docs: docs/architecture/ (system) and services/<service>/docs/ (component), indexed in docs/README.md.
   They describe the current system only: no history, plans or changelogs. Edit in place and delete anything no longer true.
-  They hold only what contracts and code don't show: how parts fit together, cross-component flows, data ownership, invariants, consistency and failure behaviour, and the reasons behind key decisions.
-  They never restate OpenAPI, Avro, SQL migrations or config: no endpoint or field lists (ER diagrams excepted), and no class, method, package or library names. Link to the contract instead.
+  They hold only what contracts, specs and code don't show: how parts fit together, cross-component flows, data ownership, and the reasons behind key decisions.
+  OpenSpec main specs (openspec/specs/) own required behaviour and its scenarios. Docs never restate them; they link to the spec.
+  They never restate OpenAPI, Avro, SQL migrations, OpenSpec specs or config: no endpoint or field lists (ER diagrams excepted), and no class, method, package or library names. Link to the contract instead.
   Mermaid only. Levels: system context and containers in docs/architecture/; components and key flows (sequence, state) per service. Name boxes by responsibility (journal, query, Postgres, Kafka), not by code element.
-  Keep each doc minimal: diagrams plus a few sentences each.
+  Per service, the ER diagram lives in one services/<service>/docs/data-model.md, shared by all flows and updated as the schema evolves. Each flow gets its own doc (sequence, state) that links to it and holds no ER diagram.
+  Keep each doc minimal: a diagram and a line of links. Text that describes the code is useless. Put a non-obvious reason in the diagram itself (a Mermaid note or an ER comment), not in prose.
 
 rules:
   proposal:
-    - 'Include a "Docs impact" section listing, per level (system, component), the living docs to create, update or delete, or "none" with a one-line reason.'
+    - 'Include a "Docs impact" section with exactly two bullets, "- System:" and "- Component:", each listing the living docs to create, update or delete, or "none" with a one-line reason. A change that adds, removes or rewires containers (docker-compose.yml, a new service, connector, topic or external client) lists docs/architecture/containers.md under System.'
   design:
-    - 'Include Mermaid diagrams at the levels the change affects (C4 context/container for new services or integrations, C4 component for new parts of a service, sequence for flows, state for lifecycles, erDiagram for data ownership).'
+    - 'Include Mermaid diagrams at the levels the change affects (C4 context/container when containers or the connections between them are added, removed or changed, C4 component for new parts of a service, sequence for flows, state for lifecycles, erDiagram for data ownership).'
     - 'Keep diagrams above code level: no class or method names.'
     - 'If the change adds or changes tables, include an erDiagram of the affected entities: relationships, keys, and all columns with name and type; add a short comment only where meaning or rules are not obvious from the name.'
   tasks:
-    - 'If the proposal''s Docs impact is not "none", add a final task: update those living docs (and the index in docs/README.md) to match the implemented code, using design.md diagrams as the starting point, and check the system context and container diagrams are still accurate.'
+    - 'If either Docs impact bullet is not "none", add a final task: update those living docs (and the index in docs/README.md) to match the implemented code, using design.md diagrams as the starting point, and check the system context and container diagrams are still accurate. Table changes go into the service''s data-model.md, not into a flow doc.'
 
 operations:
   apply:
     guidance:
-      - 'For the docs task, write from the implemented code, not design.md, and drop anything a contract (OpenAPI, Avro, migrations) already states.'
+      - 'For the docs task, write from the implemented code, not design.md, and drop anything a contract (OpenAPI, Avro, migrations) or an OpenSpec main spec already states.'
   archive:
     guidance:
-      - 'Before archiving, check the docs task is done and the docs listed in Docs impact match the code. Carry any design.md decision or invariant that still holds and is not obvious from code into the component doc, in one or two sentences, since design.md leaves view once archived.'
+      - 'Before archiving, check the docs task is done and the docs listed in Docs impact match the code. Carry any design.md decision or invariant that still holds and is not obvious from code into the component doc as a diagram note or ER comment, since design.md leaves view once archived.'
 
 # Project context (optional)
 # Add only constraints that should guide OpenSpec artifacts and workflows.

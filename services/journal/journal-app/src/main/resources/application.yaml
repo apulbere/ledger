@@ -2,7 +2,7 @@ spring:
   application:
     name: journal
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/ledger}
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/journal}
     username: ${DB_USERNAME:journal_user}
     password: ${DB_PASSWORD:journal_pass}
   liquibase:
@@ -12,6 +12,14 @@ spring:
     liquibase-schema: public
     database-change-log-table: journal_databasechangelog
     database-change-log-lock-table: journal_databasechangeloglock
+  jackson:
+    # Strict request parsing: anything outside the contract is a 400, never silently coerced.
+    deserialization:
+      fail-on-unknown-properties: true
+      fail-on-null-for-primitives: true
+      accept-float-as-int: false
+    mapper:
+      allow-coercion-of-scalars: false
 
 server:
   port: 8080

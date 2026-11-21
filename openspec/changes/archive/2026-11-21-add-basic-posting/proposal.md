@@ -33,5 +33,6 @@ The ledger has no business behaviour yet: `journal` is an empty Spring Boot app 
 
 ## Docs impact
 
-- Create `services/journal/docs/posting.md`: a sequence diagram of the posting write path and an ER diagram of `journal.transaction` and `journal.balance`.
-- Update `docs/README.md`: add the new doc to the index.
+- Create `services/journal/docs/data-model.md`: an ER diagram of `journal.transaction` and `journal.balance` and their invariants. It is shared by every journal flow and evolves with the schema.
+- Create `services/journal/docs/posting.md`: a sequence diagram of the posting write path, linking to the data model.
+- Update `docs/README.md`: add both docs to the index.

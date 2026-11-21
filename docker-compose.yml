@@ -1,20 +1,38 @@
 name: ledger
 
 services:
-  postgres:
+  journal-postgres:
     image: postgres:18
+    # Debezium reads the journal's write-ahead log.
     command: ["postgres", "-c", "wal_level=logical"]
     environment:
-      POSTGRES_DB: ledger
+      POSTGRES_DB: journal
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
       - "5432:5432"
     volumes:
-      - pgdata:/var/lib/postgresql
-      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - journal-pgdata:/var/lib/postgresql
+      - ./docker/postgres/journal-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d ledger"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d journal"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  query-postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: query
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - query-pgdata:/var/lib/postgresql
+      - ./docker/postgres/query-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d query"]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -65,7 +83,7 @@ services:
   kafka-connect:
     build: docker/kafka-connect
     depends_on:
-      postgres:
+      journal-postgres:
         condition: service_healthy
       kafka:
         condition: service_healthy
@@ -97,15 +115,15 @@ services:
     build:
       context: .
       dockerfile: services/journal/journal-app/Dockerfile
-    depends_on: &app-deps
-      postgres:
+    depends_on:
+      journal-postgres:
         condition: service_healthy
       kafka:
         condition: service_healthy
       schema-registry:
         condition: service_healthy
     environment:
-      DB_URL: jdbc:postgresql://postgres:5432/ledger
+      DB_URL: jdbc:postgresql://journal-postgres:5432/journal
     ports:
       - "8080:8080"
     healthcheck:
@@ -120,9 +138,15 @@ services:
     build:
       context: .
       dockerfile: services/query/query-app/Dockerfile
-    depends_on: *app-deps
+    depends_on:
+      query-postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      schema-registry:
+        condition: service_healthy
     environment:
-      DB_URL: jdbc:postgresql://postgres:5432/ledger
+      DB_URL: jdbc:postgresql://query-postgres:5432/query
     ports:
       - "8081:8081"
     healthcheck:
@@ -134,4 +158,5 @@ services:
       start_period: 20s
 
 volumes:
-  pgdata:
+  journal-pgdata:
+  query-pgdata:
