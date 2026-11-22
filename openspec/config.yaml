@@ -8,7 +8,7 @@ context: |
   They never restate OpenAPI, Avro, SQL migrations, OpenSpec specs or config: no endpoint or field lists (ER diagrams excepted), and no class, method, package or library names. Link to the contract instead.
   Mermaid only. Levels: system context and containers in docs/architecture/; components and key flows (sequence, state) per service. Name boxes by responsibility (journal, query, Postgres, Kafka), not by code element.
   Per service, the ER diagram lives in one services/<service>/docs/data-model.md, shared by all flows and updated as the schema evolves. Each flow gets its own doc (sequence, state) that links to it and holds no ER diagram.
-  REST is contract-first: the hand-written services/journal/journal-app/src/main/openapi/openapi.yaml is the journal's REST contract, never generated from code (springdoc's /v3/api-docs is not the contract). A change to the REST API updates that document first; tests validate traffic and its examples against it.
+  REST is contract-first: each service's hand-written src/main/openapi/openapi.yaml is its REST contract, never generated from code. A REST change updates that document first.
   Keep each doc minimal: a diagram and a line of links. Text that describes the code is useless. Put a non-obvious reason in the diagram itself (a Mermaid note or an ER comment), not in prose.
 
 rules:

@@ -28,7 +28,9 @@ final class OpenApiContract {
     static final Path DOCUMENT = Path.of("src/main/openapi/openapi.yaml");
 
     private static final OpenApiInteractionValidator VALIDATOR =
-            OpenApiInteractionValidator.createForSpecificationUrl(DOCUMENT.toUri().toString()).build();
+            OpenApiInteractionValidator.createForSpecificationUrl(DOCUMENT.toUri().toString())
+                    .withBasePathOverride("/")
+                    .build();
 
     private OpenApiContract() {
     }
