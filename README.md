@@ -27,5 +27,9 @@ docker compose down -v      # stop and wipe all data
 | kafka            | 9092      |
 | schema-registry  | 8085      |
 | kafka-connect    | 8083      |
+| gateway          | 8090      |
+
+The gateway at http://localhost:8090 serves Swagger UI with every service's hand-written OpenAPI contract,
+and each service's API under its prefix (`/journal/...`), so "Try it out" works from the browser.
 
 Docs: [docs/README.md](docs/README.md). Changes are planned with OpenSpec in `openspec/`.

@@ -8,9 +8,20 @@ info:
     Tests validate real traffic against it, so a mismatch with the code fails the build.
     Behaviour: openspec/specs/journal/transaction-posting and openspec/specs/journal/account-balances.
 
+servers:
+  # The journal's prefix behind the gateway; relative, so it resolves against wherever the document is served.
+  # Calling the app directly (port 8080) there is no prefix.
+  - url: /journal
+    description: Through the gateway
+
+tags:
+  - name: Postings
+    description: Balanced double-entry postings and the customer balances they move.
+
 paths:
   /transactions:
     post:
+      tags: [Postings]
       operationId: recordPosting
       summary: Record a posting
       description: |
