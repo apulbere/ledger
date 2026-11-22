@@ -17,7 +17,7 @@ class BalanceDeltaTest {
         assertThat(deltas(
                 debit(CUS_A, "AVAILABLE", 5000, "EUR"),
                 credit(CUS_A, "HELD", 5000, "EUR")))
-                .containsExactly(new BalanceDelta(CUS_A, "EUR", -5000, 5000));
+                .containsExactly(new BalanceDelta(CUS_A, "EUR", 5000, 0, 0, 5000));
     }
 
     @Test
@@ -28,18 +28,27 @@ class BalanceDeltaTest {
                 debit(CUS_A, "AVAILABLE", 10000, "EUR"),
                 credit("int_FX_POSITION_EUR", null, 10000, "EUR")))
                 .containsExactly(
-                        new BalanceDelta(CUS_A, "EUR", -10000, 0),
-                        new BalanceDelta(CUS_A, "USD", 11000, 0));
+                        new BalanceDelta(CUS_A, "EUR", 10000, 0, 0, 0),
+                        new BalanceDelta(CUS_A, "USD", 0, 11000, 0, 0));
     }
 
     @Test
-    void severalEntriesOnOneBalanceNetToOneDelta() {
+    void severalEntriesOnOneBalanceGiveOneDelta() {
         assertThat(deltas(
                 credit(CUS_A, "HELD", 300, "EUR"),
                 credit(CUS_A, "AVAILABLE", 1000, "EUR"),
                 debit(CUS_A, "AVAILABLE", 200, "EUR"),
                 debit("int_SETTLEMENT_VISA", null, 1100, "EUR")))
-                .containsExactly(new BalanceDelta(CUS_A, "EUR", 800, 300));
+                .containsExactly(new BalanceDelta(CUS_A, "EUR", 200, 1000, 0, 300));
+    }
+
+    @Test
+    void debitAndCreditOnOneBucketAreKeptApart() {
+        assertThat(deltas(
+                credit(CUS_A, "AVAILABLE", 1000, "EUR"),
+                debit(CUS_A, "AVAILABLE", 200, "EUR"),
+                debit("int_SETTLEMENT_VISA", null, 800, "EUR")))
+                .containsExactly(new BalanceDelta(CUS_A, "EUR", 200, 1000, 0, 0));
     }
 
     @Test

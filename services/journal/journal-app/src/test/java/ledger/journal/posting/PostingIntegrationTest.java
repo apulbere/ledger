@@ -24,7 +24,7 @@ class PostingIntegrationTest extends PostingApiSupport {
 
         UUID id = UUID.fromString(recorded.get("id").asString());
         assertThat(id.version()).isEqualTo(7);
-        assertThat(balance(a, "EUR")).contains(new Balance(5000, 0, 1, id));
+        assertThat(balance(a, "EUR")).contains(new Balance(0, 5000, 0, 0, 1, id));
         assertThat(versions(recorded)).containsExactly(a + "/EUR/1");
     }
 
@@ -35,8 +35,8 @@ class PostingIntegrationTest extends PostingApiSupport {
         record(posting(credit(a, "AVAILABLE", 5000, "EUR"), debit("int_BANK_NOSTRO_EUR", null, 5000, "EUR")));
         record(posting(credit(a, "AVAILABLE", 11000, "USD"), debit("int_BANK_NOSTRO_USD", null, 11000, "USD")));
 
-        assertThat(balance(a, "EUR")).hasValueSatisfying(b -> assertThat(b.available()).isEqualTo(5000));
-        assertThat(balance(a, "USD")).hasValueSatisfying(b -> assertThat(b.available()).isEqualTo(11000));
+        assertThat(balance(a, "EUR")).hasValueSatisfying(b -> assertThat(b.availableCredit()).isEqualTo(5000));
+        assertThat(balance(a, "USD")).hasValueSatisfying(b -> assertThat(b.availableCredit()).isEqualTo(11000));
     }
 
     @Test
@@ -46,7 +46,7 @@ class PostingIntegrationTest extends PostingApiSupport {
 
         JsonNode hold = record(posting(debit(a, "AVAILABLE", 5000, "EUR"), credit(a, "HELD", 5000, "EUR")));
 
-        assertThat(balance(a, "EUR")).contains(new Balance(5000, 5000, 2, id(hold)));
+        assertThat(balance(a, "EUR")).contains(new Balance(5000, 10000, 0, 5000, 2, id(hold)));
         assertThat(versions(hold)).containsExactly(a + "/EUR/2");
     }
 
@@ -62,8 +62,8 @@ class PostingIntegrationTest extends PostingApiSupport {
                 debit("int_FX_POSITION_USD", null, 11000, "USD"),
                 credit(a, "AVAILABLE", 11000, "USD")));
 
-        assertThat(balance(a, "EUR")).contains(new Balance(35000, 0, 2, id(fx)));
-        assertThat(balance(a, "USD")).contains(new Balance(13000, 0, 2, id(fx)));
+        assertThat(balance(a, "EUR")).contains(new Balance(10000, 45000, 0, 0, 2, id(fx)));
+        assertThat(balance(a, "USD")).contains(new Balance(0, 13000, 0, 0, 2, id(fx)));
         assertThat(versions(fx)).containsExactly(a + "/EUR/2", a + "/USD/2");
     }
 
@@ -81,9 +81,9 @@ class PostingIntegrationTest extends PostingApiSupport {
                 credit(b, "AVAILABLE", 1000, "EUR"),
                 credit(c, "AVAILABLE", 50, "EUR")));
 
-        assertThat(balance(a, "EUR")).contains(new Balance(3950, 0, 3, id(transfer)));
-        assertThat(balance(b, "EUR")).contains(new Balance(1100, 0, 2, id(transfer)));
-        assertThat(balance(c, "EUR")).contains(new Balance(50, 0, 1, id(transfer)));
+        assertThat(balance(a, "EUR")).contains(new Balance(1050, 5000, 0, 0, 3, id(transfer)));
+        assertThat(balance(b, "EUR")).contains(new Balance(0, 1100, 0, 0, 2, id(transfer)));
+        assertThat(balance(c, "EUR")).contains(new Balance(0, 50, 0, 0, 1, id(transfer)));
         assertThat(versions(transfer)).containsExactlyInAnyOrder(a + "/EUR/3", b + "/EUR/2", c + "/EUR/1");
     }
 
@@ -94,7 +94,11 @@ class PostingIntegrationTest extends PostingApiSupport {
 
         record(posting(debit(a, "AVAILABLE", 5000, "EUR"), credit("int_SETTLEMENT_VISA", null, 5000, "EUR")));
 
-        assertThat(balance(a, "EUR")).hasValueSatisfying(b -> assertThat(b.available()).isEqualTo(-4000));
+        assertThat(balance(a, "EUR")).hasValueSatisfying(b -> {
+            assertThat(b.availableDebit()).isEqualTo(5000);
+            assertThat(b.availableCredit()).isEqualTo(1000);
+            assertThat(b.available()).isEqualTo(-4000);
+        });
     }
 
     @Test
@@ -119,8 +123,20 @@ class PostingIntegrationTest extends PostingApiSupport {
                 debit(a, "AVAILABLE", 100, "EUR"),
                 debit("int_SETTLEMENT_VISA", null, 400, "EUR")));
 
-        assertThat(balance(a, "EUR")).contains(new Balance(1100, 300, 2, id(recorded)));
+        assertThat(balance(a, "EUR")).contains(new Balance(100, 1200, 0, 300, 2, id(recorded)));
         assertThat(versions(recorded)).containsExactly(a + "/EUR/2");
+    }
+
+    @Test
+    void debitAndCreditOnOneBucketInOnePostingAreKeptApart() {
+        String a = newCustomer();
+
+        JsonNode recorded = record(posting(
+                credit(a, "AVAILABLE", 1000, "EUR"),
+                debit(a, "AVAILABLE", 200, "EUR"),
+                debit("int_BANK_NOSTRO_EUR", null, 800, "EUR")));
+
+        assertThat(balance(a, "EUR")).contains(new Balance(200, 1000, 0, 0, 1, id(recorded)));
     }
 
     @Test

@@ -20,11 +20,15 @@ import tools.jackson.databind.json.JsonMapper;
 class PostingRepository {
 
     private static final String UPSERT_BALANCE = """
-            INSERT INTO journal.balance (account_id, currency, available, held, version, last_transaction_id)
-            VALUES (?, ?, ?, ?, 1, ?)
+            INSERT INTO journal.balance
+                (account_id, currency, available_debit, available_credit, held_debit, held_credit,
+                 version, last_transaction_id)
+            VALUES (?, ?, ?, ?, ?, ?, 1, ?)
             ON CONFLICT (account_id, currency) DO UPDATE
-               SET available = balance.available + EXCLUDED.available,
-                   held = balance.held + EXCLUDED.held,
+               SET available_debit = balance.available_debit + EXCLUDED.available_debit,
+                   available_credit = balance.available_credit + EXCLUDED.available_credit,
+                   held_debit = balance.held_debit + EXCLUDED.held_debit,
+                   held_credit = balance.held_credit + EXCLUDED.held_credit,
                    version = balance.version + 1,
                    last_transaction_id = EXCLUDED.last_transaction_id
             RETURNING version
@@ -89,9 +93,11 @@ class PostingRepository {
                         BalanceDelta delta = deltas.get(i);
                         ps.setString(1, delta.accountId());
                         ps.setString(2, delta.currency());
-                        ps.setLong(3, delta.available());
-                        ps.setLong(4, delta.held());
-                        ps.setObject(5, transactionId);
+                        ps.setLong(3, delta.availableDebit());
+                        ps.setLong(4, delta.availableCredit());
+                        ps.setLong(5, delta.heldDebit());
+                        ps.setLong(6, delta.heldCredit());
+                        ps.setObject(7, transactionId);
                     }
 
                     @Override

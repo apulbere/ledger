@@ -15,26 +15,25 @@ import org.junit.jupiter.api.Test;
 class BalanceReconstructionTest extends PostingApiSupport {
 
     @Test
-    void balancesEqualTheSumOfRecordedEntries() {
+    void totalsEqualTheSumsOfRecordedEntriesPerDirection() {
         recordMixedSequence();
 
-        Map<String, String> fromLog = jdbc.sql("""
-                SELECT e->>'accountId' AS account_id, e->>'currency' AS currency,
-                       sum(CASE WHEN e->>'bucket' = 'AVAILABLE' THEN signed ELSE 0 END) AS available,
-                       sum(CASE WHEN e->>'bucket' = 'HELD' THEN signed ELSE 0 END) AS held
+        Map<String, String> fromLog = totals("""
+                SELECT e->>'accountId', e->>'currency',
+                       coalesce(sum(amount) FILTER (WHERE e->>'bucket' = 'AVAILABLE' AND e->>'direction' = 'DEBIT'), 0),
+                       coalesce(sum(amount) FILTER (WHERE e->>'bucket' = 'AVAILABLE' AND e->>'direction' = 'CREDIT'), 0),
+                       coalesce(sum(amount) FILTER (WHERE e->>'bucket' = 'HELD' AND e->>'direction' = 'DEBIT'), 0),
+                       coalesce(sum(amount) FILTER (WHERE e->>'bucket' = 'HELD' AND e->>'direction' = 'CREDIT'), 0)
                 FROM journal.transaction t,
                      jsonb_array_elements(t.entries) e,
-                     LATERAL (SELECT CASE e->>'direction' WHEN 'CREDIT' THEN 1 ELSE -1 END
-                                     * (e->>'amount')::bigint AS signed) s
+                     LATERAL (SELECT (e->>'amount')::bigint AS amount) s
                 WHERE e->>'accountType' = 'CUSTOMER'
                 GROUP BY 1, 2
-                """).query((rs, n) -> Map.entry(rs.getString(1) + "/" + rs.getString(2),
-                        rs.getLong(3) + "/" + rs.getLong(4)))
-                .list().stream().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-        Map<String, String> maintained = jdbc.sql("SELECT account_id, currency, available, held FROM journal.balance")
-                .query((rs, n) -> Map.entry(rs.getString(1) + "/" + rs.getString(2),
-                        rs.getLong(3) + "/" + rs.getLong(4)))
-                .list().stream().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                """);
+        Map<String, String> maintained = totals("""
+                SELECT account_id, currency, available_debit, available_credit, held_debit, held_credit
+                FROM journal.balance
+                """);
 
         assertThat(maintained).isNotEmpty().isEqualTo(fromLog);
     }
@@ -70,6 +69,14 @@ class BalanceReconstructionTest extends PostingApiSupport {
                 """).query(Long.class).single();
 
         assertThat(mismatches).isZero();
+    }
+
+    /** Rows of (account, currency, four totals) keyed by account/currency. */
+    private Map<String, String> totals(String sql) {
+        return jdbc.sql(sql)
+                .query((rs, n) -> Map.entry(rs.getString(1) + "/" + rs.getString(2),
+                        rs.getLong(3) + "/" + rs.getLong(4) + "/" + rs.getLong(5) + "/" + rs.getLong(6)))
+                .list().stream().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     private void recordMixedSequence() {

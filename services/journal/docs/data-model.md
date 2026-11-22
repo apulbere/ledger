@@ -18,8 +18,10 @@ erDiagram
     BALANCE {
         text account_id PK "customer only: internal accounts never locked"
         char currency PK
-        bigint available "buckets as columns: a hold takes one row lock"
-        bigint held
+        bigint available_debit "buckets and directions as columns: a hold takes one row lock"
+        bigint available_credit
+        bigint held_debit
+        bigint held_credit
         bigint version
         uuid last_transaction_id
     }
