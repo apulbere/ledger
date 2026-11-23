@@ -40,7 +40,16 @@ abstract class PostingApiSupport {
     record Response(int status, JsonNode body) {
     }
 
-    record Balance(long available, long held, long version, UUID lastTransactionId) {
+    record Balance(long availableDebit, long availableCredit, long heldDebit, long heldCredit,
+            long version, UUID lastTransactionId) {
+
+        long available() {
+            return availableCredit - availableDebit;
+        }
+
+        long held() {
+            return heldCredit - heldDebit;
+        }
     }
 
     /** A fresh customer account id, so tests sharing the database never touch each other's balances. */
@@ -95,10 +104,11 @@ abstract class PostingApiSupport {
 
     Optional<Balance> balance(String accountId, String currency) {
         return jdbc.sql("""
-                SELECT available, held, version, last_transaction_id
+                SELECT available_debit, available_credit, held_debit, held_credit, version, last_transaction_id
                 FROM journal.balance WHERE account_id = ? AND currency = ?
                 """).params(accountId, currency)
-                .query((rs, n) -> new Balance(rs.getLong("available"), rs.getLong("held"), rs.getLong("version"),
+                .query((rs, n) -> new Balance(rs.getLong("available_debit"), rs.getLong("available_credit"),
+                        rs.getLong("held_debit"), rs.getLong("held_credit"), rs.getLong("version"),
                         rs.getObject("last_transaction_id", UUID.class)))
                 .optional();
     }

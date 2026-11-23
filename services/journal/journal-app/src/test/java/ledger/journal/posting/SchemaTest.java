@@ -42,10 +42,12 @@ class SchemaTest {
         assertThat(columns("balance")).containsExactly(
                 Map.entry("account_id", "text:NO"),
                 Map.entry("currency", "character:NO"),
-                Map.entry("available", "bigint:NO"),
-                Map.entry("held", "bigint:NO"),
                 Map.entry("version", "bigint:NO"),
-                Map.entry("last_transaction_id", "uuid:NO"));
+                Map.entry("last_transaction_id", "uuid:NO"),
+                Map.entry("available_debit", "bigint:NO"),
+                Map.entry("available_credit", "bigint:NO"),
+                Map.entry("held_debit", "bigint:NO"),
+                Map.entry("held_credit", "bigint:NO"));
         assertThat(constraintColumns("balance", "PRIMARY KEY")).containsExactly("account_id", "currency");
     }
 

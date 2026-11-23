@@ -45,7 +45,8 @@ class PostingConcurrencyTest extends PostingApiSupport {
         assertThat(responses).extracting(Response::status).containsOnly(201);
         assertThat(recordedVersions(a, "EUR")).containsExactlyElementsOf(LongStream.rangeClosed(1, n).boxed().toList());
         Balance balance = balance(a, "EUR").orElseThrow();
-        assertThat(balance.available()).isEqualTo(100L * n);
+        assertThat(balance.availableCredit()).isEqualTo(100L * n);
+        assertThat(balance.availableDebit()).isZero();
         assertThat(balance.version()).isEqualTo(n);
     }
 
@@ -60,7 +61,7 @@ class PostingConcurrencyTest extends PostingApiSupport {
 
             assertThat(responses).extracting(Response::status).containsExactlyInAnyOrder(201, 409);
             assertThat(postingsWithKey(key)).isEqualTo(1);
-            assertThat(balance(a, "EUR").orElseThrow()).extracting(Balance::available, Balance::version)
+            assertThat(balance(a, "EUR").orElseThrow()).extracting(Balance::availableCredit, Balance::version)
                     .containsExactly(100L, 1L);
         }
     }
@@ -77,10 +78,13 @@ class PostingConcurrencyTest extends PostingApiSupport {
                 : posting(debit(b, "AVAILABLE", 10, "EUR"), credit(a, "AVAILABLE", 10, "EUR"))));
 
         assertThat(responses).extracting(Response::status).containsOnly(201);
-        assertThat(balance(a, "EUR").orElseThrow()).extracting(Balance::available, Balance::version)
-                .containsExactly(0L, (long) n);
-        assertThat(balance(b, "EUR").orElseThrow()).extracting(Balance::available, Balance::version)
-                .containsExactly(0L, (long) n);
+        long moved = 10L * n / 2;
+        assertThat(balance(a, "EUR").orElseThrow())
+                .extracting(Balance::availableDebit, Balance::availableCredit, Balance::version)
+                .containsExactly(moved, moved, (long) n);
+        assertThat(balance(b, "EUR").orElseThrow())
+                .extracting(Balance::availableDebit, Balance::availableCredit, Balance::version)
+                .containsExactly(moved, moved, (long) n);
     }
 
     @Test
