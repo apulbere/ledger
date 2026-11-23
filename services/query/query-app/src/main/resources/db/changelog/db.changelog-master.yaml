@@ -1,7 +1,3 @@
+# One formatted SQL file per changeset, named after its id, under changes/; applied in the order listed here.
 databaseChangeLog:
-  - changeSet:
-      id: create-schema-query
-      author: ledger
-      changes:
-        - sql:
-            sql: CREATE SCHEMA IF NOT EXISTS query
+  - include: { file: changes/create-schema-query.sql, relativeToChangelogFile: true }
