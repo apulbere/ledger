@@ -1,3 +1,3 @@
-# Migrations are formatted SQL files under changes/, applied in the order listed here.
+# One formatted SQL file per changeset, named after its id, under changes/; applied in the order listed here.
 databaseChangeLog:
-  - include: { file: changes/001-create-schema-query.sql, relativeToChangelogFile: true }
+  - include: { file: changes/create-schema-query.sql, relativeToChangelogFile: true }
