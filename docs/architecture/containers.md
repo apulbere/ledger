@@ -5,7 +5,6 @@ Deployment: [docker-compose.yml](../../docker-compose.yml). Components: [journal
 ```mermaid
 flowchart LR
     upstream([Upstream systems])
-    readers([Read clients])
     subgraph ledger
         gateway[API gateway<br/>routes each service's API by prefix]
         journal[journal<br/>records postings and customer balances]
@@ -17,7 +16,6 @@ flowchart LR
         registry[Schema Registry]
     end
     upstream -- "REST" --> gateway
-    readers -- "REST" --> gateway
     gateway -- "/journal" --> journal
     gateway -- "/query" --> query
     journal --> journaldb
