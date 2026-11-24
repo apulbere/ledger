@@ -30,8 +30,4 @@ flowchart LR
     query -- "consumes posting and balance events" --> kafka
     query -- "writer schemas by id" --> registry
     query --> querydb
-    note["journal never talks to Kafka:<br/>a posting never waits on CDC"]
-    note -.- journal
-    note2["query is eventually consistent with journal:<br/>it only learns of postings through Kafka"]
-    note2 -.- query
 ```
