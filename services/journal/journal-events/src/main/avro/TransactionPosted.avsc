@@ -2,6 +2,16 @@
   "type": "record",
   "name": "TransactionPosted",
   "namespace": "ledger.journal.events",
-  "doc": "TBD via OpenSpec",
-  "fields": []
+  "doc": "A recorded posting, as committed to the journal's posting log. Value of topic ledger.journal.transaction, keyed by TransactionKey. Field names are the posting log's column names.",
+  "fields": [
+    {"name": "id", "type": "string", "doc": "Posting id, a UUIDv7 in canonical text form."},
+    {"name": "idempotency_key", "type": "string"},
+    {"name": "reference_id", "type": ["null", "string"], "default": null},
+    {"name": "occurred_at", "type": "string", "doc": "RFC 3339 timestamp in UTC."},
+    {"name": "posted_at", "type": "string", "doc": "RFC 3339 timestamp in UTC. Display only, not commit order."},
+    {"name": "description", "type": ["null", "string"], "default": null},
+    {"name": "metadata", "type": ["null", "string"], "default": null, "doc": "JSON object text, as submitted; null when the posting had none."},
+    {"name": "entries", "type": "string", "doc": "JSON array text, as in the REST response: [{line, accountId, accountType (CUSTOMER|INTERNAL), bucket (AVAILABLE|HELD, customer only), direction (DEBIT|CREDIT), amount (minor units), currency}]."},
+    {"name": "versions", "type": "string", "doc": "JSON array text, as in the REST response: [{accountId, currency, version}], one per customer balance the posting changed."}
+  ]
 }

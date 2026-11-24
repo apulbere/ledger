@@ -3,8 +3,9 @@ name: ledger
 services:
   journal-postgres:
     image: postgres:18
-    # Debezium reads the journal's write-ahead log.
-    command: ["postgres", "-c", "wal_level=logical"]
+    # Debezium reads the journal's write-ahead log. A stopped connector's slot pins WAL:
+    # cap it so a forgotten slot cannot fill the disk (the slot is then invalidated).
+    command: ["postgres", "-c", "wal_level=logical", "-c", "max_slot_wal_keep_size=1GB"]
     environment:
       POSTGRES_DB: journal
       POSTGRES_USER: postgres
@@ -52,6 +53,9 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      # Topics are created by their producers with explicit settings (Connect for the journal topics);
+      # a consumer starting first must not create one with broker defaults (7-day retention).
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
     ports:
       - "9092:9092"
     healthcheck:
@@ -110,6 +114,28 @@ services:
       timeout: 5s
       retries: 30
       start_period: 30s
+
+  # Registers the Debezium connector once Connect is up and journal has migrated (publication exists).
+  # PUT of the config is idempotent: re-running it leaves a running connector as it is.
+  connector-init:
+    image: curlimages/curl:8.11.1
+    depends_on:
+      kafka-connect:
+        condition: service_healthy
+      journal-app:
+        condition: service_healthy
+    volumes:
+      - ./docker/kafka-connect/connectors:/connectors:ro
+    command:
+      - -fsS
+      - -X
+      - PUT
+      - -H
+      - "Content-Type: application/json"
+      - --data
+      - "@/connectors/journal-cdc.json"
+      - http://kafka-connect:8083/connectors/journal-cdc/config
+    restart: "no"
 
   journal-app:
     build:

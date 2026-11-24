@@ -1,0 +1,10 @@
+{
+  "type": "record",
+  "name": "BalanceKey",
+  "namespace": "ledger.journal.events",
+  "doc": "Key of topic ledger.journal.balance: one customer balance.",
+  "fields": [
+    {"name": "account_id", "type": "string"},
+    {"name": "currency", "type": "string"}
+  ]
+}

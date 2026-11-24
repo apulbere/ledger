@@ -13,3 +13,4 @@ Living docs: they describe the **current** system, not plans or history.
 - [system: containers](architecture/containers.md): container diagram of the deployed system.
 - [journal: data model](../services/journal/docs/data-model.md): ER diagram of the posting log and customer balances.
 - [journal: posting](../services/journal/docs/posting.md): sequence diagram of the write path.
+- [journal: change events](../services/journal/docs/change-events.md): sequence diagram from commit to the Kafka topics.

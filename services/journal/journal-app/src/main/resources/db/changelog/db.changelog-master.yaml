@@ -5,3 +5,4 @@ databaseChangeLog:
   - include: { file: changes/create-table-balance.sql, relativeToChangelogFile: true }
   - include: { file: changes/transaction-append-only.sql, relativeToChangelogFile: true }
   - include: { file: changes/split-balance-debit-credit.sql, relativeToChangelogFile: true }
+  - include: { file: changes/create-publication-journal-cdc.sql, relativeToChangelogFile: true }
