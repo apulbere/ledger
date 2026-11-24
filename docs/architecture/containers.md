@@ -6,7 +6,7 @@ Deployment: [docker-compose.yml](../../docker-compose.yml). Components: [journal
 flowchart LR
     upstream([Upstream systems])
     subgraph ledger
-        gateway[API gateway<br/>routes each service's API by prefix]
+        gateway[API gateway]
         journal[journal<br/>records postings and customer balances]
         query[query<br/>projections, transaction search]
         journaldb[(journal Postgres)]
