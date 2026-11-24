@@ -7,9 +7,8 @@ flowchart LR
     upstream([Upstream systems])
     readers([Read clients])
     subgraph ledger
-        gateway[gateway<br/>one origin: Swagger UI + each service's API]
-        swagger[Swagger UI<br/>every service's contract]
-        journal[journal<br/>records postings, owns balances]
+        gateway[API gateway<br/>routes each service's API by prefix]
+        journal[journal<br/>records postings and customer balances]
         query[query<br/>projections, transaction search]
         journaldb[(journal Postgres)]
         querydb[(query Postgres)]
@@ -19,7 +18,6 @@ flowchart LR
     end
     upstream -- "REST" --> gateway
     readers -- "REST" --> gateway
-    gateway --> swagger
     gateway -- "/journal" --> journal
     gateway -- "/query" --> query
     journal --> journaldb
