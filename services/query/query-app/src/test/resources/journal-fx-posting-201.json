@@ -1,0 +1,18 @@
+{
+  "id": "019ab7c4-5e2f-7a31-9c0d-4b8e2f6a1d40",
+  "referenceId": "fx-20261121-0007",
+  "occurredAt": "2026-11-21T09:15:00Z",
+  "postedAt": "2026-11-21T09:15:00.731842Z",
+  "description": "EUR to USD at 1.10",
+  "metadata": { "rate": "1.10", "channel": { "app": "ios", "version": 42 } },
+  "entries": [
+    { "line": 1, "accountId": "cus_01jcz8k2m4f7r9t3vbx5w6y8za", "accountType": "CUSTOMER", "bucket": "AVAILABLE", "direction": "DEBIT", "amount": 10000, "currency": "EUR" },
+    { "line": 2, "accountId": "int_FX_POSITION_EUR", "accountType": "INTERNAL", "direction": "CREDIT", "amount": 10000, "currency": "EUR" },
+    { "line": 3, "accountId": "int_FX_POSITION_USD", "accountType": "INTERNAL", "direction": "DEBIT", "amount": 11000, "currency": "USD" },
+    { "line": 4, "accountId": "cus_01jcz8k2m4f7r9t3vbx5w6y8za", "accountType": "CUSTOMER", "bucket": "AVAILABLE", "direction": "CREDIT", "amount": 11000, "currency": "USD" }
+  ],
+  "versions": [
+    { "accountId": "cus_01jcz8k2m4f7r9t3vbx5w6y8za", "currency": "EUR", "version": 18 },
+    { "accountId": "cus_01jcz8k2m4f7r9t3vbx5w6y8za", "currency": "USD", "version": 4 }
+  ]
+}

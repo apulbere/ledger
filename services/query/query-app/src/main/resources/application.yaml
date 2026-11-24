@@ -12,6 +12,25 @@ spring:
     liquibase-schema: public
     database-change-log-table: query_databasechangelog
     database-change-log-lock-table: query_databasechangeloglock
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      # A new group replays both topics from the start: that is how the projections are (re)built.
+      group-id: ${KAFKA_GROUP_ID:query}
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      # Decoded in the listener, so a bad record goes through the retrying error handler instead of being skipped.
+      key-deserializer: org.apache.kafka.common.serialization.ByteArrayDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.ByteArrayDeserializer
+    listener:
+      # Offset committed per record, after the listener (and its database transaction) returned.
+      ack-mode: record
+      # The connector creates the topics after query may have started; broker auto-create is off.
+      missing-topics-fatal: false
+
+ledger:
+  schema-registry:
+    url: ${SCHEMA_REGISTRY_URL:http://localhost:8085}
 
 server:
   port: 8081

@@ -1,0 +1,244 @@
+openapi: 3.0.3
+info:
+  title: Query API
+  version: 1.0.0
+  description: |
+    Read side of the ledger: projections built from the journal's change events.
+    This document is hand-written and is the source of truth for the REST contract.
+    Tests validate real traffic against it, so a mismatch with the code fails the build.
+    Behaviour: openspec/specs/query/transaction-search.
+    Results are eventually consistent with the journal: a just-recorded posting may not be found yet.
+
+servers:
+  # The query service's prefix behind the gateway; relative, so it resolves against wherever the document is served.
+  # Calling the app directly (port 8081) there is no prefix.
+  - url: /query
+    description: Through the gateway
+
+tags:
+  - name: Transactions
+    description: Recorded postings, searched by the accounts they touched.
+
+paths:
+  /accounts/{accountId}/transactions:
+    get:
+      tags: [Transactions]
+      operationId: searchTransactionsByAccount
+      summary: Search postings by account
+      description: |
+        Postings with at least one entry on the account, customer or internal, each once,
+        newest `occurredAt` first (ties by `id`, descending). Every entry of a posting is returned,
+        not only those of the account. An account no posting touched gives an empty page.
+        To read the next page, repeat the request with the same filters and `cursor` set to `nextCursor`.
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/AccountId'
+        - name: currency
+          in: query
+          required: false
+          description: Only postings with an entry on the account in this currency.
+          schema:
+            $ref: '#/components/schemas/Currency'
+        - name: occurredFrom
+          in: query
+          required: false
+          description: Inclusive lower bound on `occurredAt`. RFC 3339.
+          schema:
+            type: string
+            format: date-time
+          example: '2026-11-21T00:00:00Z'
+        - name: occurredTo
+          in: query
+          required: false
+          description: Exclusive upper bound on `occurredAt`. RFC 3339. Must be after `occurredFrom`.
+          schema:
+            type: string
+            format: date-time
+          example: '2026-11-22T00:00:00Z'
+        - name: limit
+          in: query
+          required: false
+          description: Maximum number of items.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: cursor
+          in: query
+          required: false
+          description: Opaque; the `nextCursor` of the previous page.
+          schema:
+            type: string
+            minLength: 1
+      responses:
+        '200':
+          description: One page of postings.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionPage'
+              examples:
+                cardPayment:
+                  summary: A card authorization, more pages follow
+                  value:
+                    items:
+                      - id: 019ab7c4-5e2f-7a31-9c0d-4b8e2f6a1d37
+                        referenceId: card-7f3a9c
+                        occurredAt: '2026-11-21T12:30:00Z'
+                        postedAt: '2026-11-21T12:30:01.204Z'
+                        description: 'Authorization: Corner Grocery'
+                        metadata: { scheme: VISA, authCode: '831926', mcc: '5411', merchant: Corner Grocery }
+                        entries:
+                          - { line: 1, accountId: cus_01jcz8k2m4f7r9t3vbx5w6y8za, accountType: CUSTOMER, bucket: AVAILABLE, direction: DEBIT, amount: 5730, currency: EUR }
+                          - { line: 2, accountId: cus_01jcz8k2m4f7r9t3vbx5w6y8za, accountType: CUSTOMER, bucket: HELD, direction: CREDIT, amount: 5730, currency: EUR }
+                        versions:
+                          - { accountId: cus_01jcz8k2m4f7r9t3vbx5w6y8za, currency: EUR, version: 2 }
+                    nextCursor: eyJvIjoiMjAyNi0xMS0yMVQxMjozMDowMFoiLCJpIjoiMDE5YWI3YzQtNWUyZi03YTMxLTljMGQtNGI4ZTJmNmExZDM3In0
+        '400':
+          description: A parameter is invalid; `parameter` names it.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/BadRequestProblem'
+
+components:
+  schemas:
+    # Posting shapes mirror the journal's contract: an item is the posting as the journal recorded it.
+    AccountId:
+      type: string
+      description: |
+        `cus_` + a 26-character TypeID suffix (customer account) or
+        `int_` + an upper-case name (internal account).
+      pattern: '^(cus_[0-7][0-9a-hjkmnp-tv-z]{25}|int_[A-Z][A-Z0-9_]{2,63})$'
+      example: cus_01jcz8k2m4f7r9t3vbx5w6y8za
+
+    Currency:
+      type: string
+      description: ISO 4217 alphabetic code.
+      pattern: '^[A-Z]{3}$'
+      example: EUR
+
+    Amount:
+      type: integer
+      format: int64
+      description: Minor units of the entry's currency.
+      minimum: 1
+      example: 5000
+
+    Direction:
+      type: string
+      enum: [DEBIT, CREDIT]
+
+    Bucket:
+      type: string
+      description: Present on customer entries only.
+      enum: [AVAILABLE, HELD]
+
+    AccountType:
+      type: string
+      enum: [CUSTOMER, INTERNAL]
+
+    TransactionPage:
+      type: object
+      additionalProperties: false
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Posting'
+        nextCursor:
+          type: string
+          nullable: true
+          description: Pass as `cursor` for the next page; null on the last page.
+
+    Posting:
+      type: object
+      additionalProperties: false
+      required: [id, referenceId, occurredAt, postedAt, description, metadata, entries, versions]
+      properties:
+        id:
+          type: string
+          format: uuid
+        referenceId:
+          type: string
+          nullable: true
+        occurredAt:
+          type: string
+          format: date-time
+        postedAt:
+          type: string
+          format: date-time
+        description:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          nullable: true
+          additionalProperties: true
+        entries:
+          type: array
+          description: All entries of the posting, in line order.
+          items:
+            $ref: '#/components/schemas/Entry'
+        versions:
+          type: array
+          description: One item per customer balance the posting changed, with its version after the posting.
+          items:
+            $ref: '#/components/schemas/BalanceVersion'
+
+    Entry:
+      type: object
+      additionalProperties: false
+      required: [line, accountId, accountType, direction, amount, currency]
+      properties:
+        line:
+          type: integer
+          minimum: 1
+        accountId:
+          $ref: '#/components/schemas/AccountId'
+        accountType:
+          $ref: '#/components/schemas/AccountType'
+        bucket:
+          $ref: '#/components/schemas/Bucket'
+        direction:
+          $ref: '#/components/schemas/Direction'
+        amount:
+          $ref: '#/components/schemas/Amount'
+        currency:
+          $ref: '#/components/schemas/Currency'
+
+    BalanceVersion:
+      type: object
+      additionalProperties: false
+      required: [accountId, currency, version]
+      properties:
+        accountId:
+          $ref: '#/components/schemas/AccountId'
+        currency:
+          $ref: '#/components/schemas/Currency'
+        version:
+          type: integer
+          format: int64
+          minimum: 1
+
+    # RFC 9457 problem details.
+    BadRequestProblem:
+      type: object
+      required: [title, status, code, parameter]
+      properties:
+        type: { type: string }
+        title: { type: string }
+        status: { type: integer, enum: [400] }
+        detail: { type: string }
+        instance: { type: string }
+        code:
+          type: string
+          enum: [INVALID_PARAMETER]
+        parameter:
+          type: string
+          enum: [accountId, currency, occurredFrom, occurredTo, limit, cursor]

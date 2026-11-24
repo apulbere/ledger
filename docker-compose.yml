@@ -173,6 +173,8 @@ services:
         condition: service_healthy
     environment:
       DB_URL: jdbc:postgresql://query-postgres:5432/query
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SCHEMA_REGISTRY_URL: http://schema-registry:8081
     ports:
       - "8081:8081"
     healthcheck:
@@ -190,12 +192,13 @@ services:
     image: swaggerapi/swagger-ui:v5.32.0
     environment:
       URLS: >-
-        [{"name": "journal", "url": "/specs/journal.yaml"}]
+        [{"name": "journal", "url": "/specs/journal.yaml"}, {"name": "query", "url": "/specs/query.yaml"}]
       URLS_PRIMARY_NAME: journal
     volumes:
       - ./services/journal/journal-app/src/main/openapi/openapi.yaml:/usr/share/nginx/html/specs/journal.yaml:ro
+      - ./services/query/query-app/src/main/openapi/openapi.yaml:/usr/share/nginx/html/specs/query.yaml:ro
 
-  # Swagger UI at / and each service under its prefix (/journal/...), all on one origin.
+  # Swagger UI at / and each service under its prefix (/journal/..., /query/...), all on one origin.
   gateway:
     image: nginx:1.29.3-alpine
     depends_on:
