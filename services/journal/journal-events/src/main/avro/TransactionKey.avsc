@@ -1,0 +1,9 @@
+{
+  "type": "record",
+  "name": "TransactionKey",
+  "namespace": "ledger.journal.events",
+  "doc": "Key of topic ledger.journal.transaction.",
+  "fields": [
+    {"name": "id", "type": "string", "doc": "Posting id, a UUIDv7 in canonical text form."}
+  ]
+}

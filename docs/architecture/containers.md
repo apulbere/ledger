@@ -1,6 +1,6 @@
 # Containers
 
-Deployment: [docker-compose.yml](../../docker-compose.yml). Components: [journal](../../services/journal/docs/data-model.md).
+Deployment: [docker-compose.yml](../../docker-compose.yml). Components: [journal](../../services/journal/docs/data-model.md), [journal change events](../../services/journal/docs/change-events.md).
 
 ```mermaid
 flowchart LR
@@ -17,7 +17,10 @@ flowchart LR
     upstream -- "REST" --> journal
     journal --> journaldb
     query --> querydb
-    connect -- "internal topics" --> kafka
+    connect -- "logical replication" --> journaldb
+    connect -- "posting and balance events,<br/>internal topics" --> kafka
     connect -- "Avro schemas" --> registry
     registry -- "schemas topic" --> kafka
+    note["journal never talks to Kafka:<br/>a posting never waits on CDC"]
+    note -.- journal
 ```

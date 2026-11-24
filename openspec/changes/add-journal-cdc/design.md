@@ -72,7 +72,7 @@ sequenceDiagram
 
 **5. Contract test by canonical form.** The connector adds `connect.*` properties and semantic-type names, so byte-equal schemas are impossible. The test compares Avro *parsing canonical form* (names, types, field order; props and docs stripped) of each registered writer schema with the `journal-events` schema. The `.avsc` files carry `doc` describing the JSON shape of `entries`, `versions` and `metadata`. Schema Registry's default `BACKWARD` compatibility stays: a future incompatible table change makes the connector fail loudly instead of breaking consumers.
 
-**6. Topics created by Connect.** `topic.creation.default.*`: 1 partition, replication 1, `cleanup.policy=delete`, `retention.ms=-1`, `retention.bytes=-1`. Keys guarantee per-balance order if partitions are raised later. Not compacted: balance history is the point.
+**6. Topics created by Connect.** `topic.creation.default.*`: 1 partition, replication 1, `cleanup.policy=delete`, `retention.ms=-1`, `retention.bytes=-1`. Keys guarantee per-balance order if partitions are raised later. Not compacted: balance history is the point. Broker topic auto-creation is off, so a consumer that starts before the connector cannot create a topic with broker defaults (7-day retention) first.
 
 **7. Snapshot then stream.** `snapshot.mode=initial`: first start emits existing rows (balances as their current state, version included), then streams. Offsets live in Connect's offset topic; the slot keeps WAL until confirmed.
 

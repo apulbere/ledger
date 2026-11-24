@@ -29,6 +29,12 @@ docker compose down -v      # stop and wipe all data
 | kafka-connect    | 8083      |
 | gateway          | 8090      |
 
+On startup the `connector-init` one-shot registers the Debezium connector, which streams journal postings and
+customer balances to the `ledger.journal.transaction` and `ledger.journal.balance` topics (Avro contract in
+[journal-events](services/journal/journal-events/src/main/avro/)). Check it with
+`curl localhost:8083/connectors/journal-cdc/status`. Debezium's read grants come from the Postgres init script,
+which only runs on an empty volume: a volume created before the connector existed needs `docker compose down -v`.
+
 The gateway at http://localhost:8090 serves Swagger UI with every service's hand-written OpenAPI contract,
 and each service's API under its prefix (`/journal/...`), so "Try it out" works from the browser.
 

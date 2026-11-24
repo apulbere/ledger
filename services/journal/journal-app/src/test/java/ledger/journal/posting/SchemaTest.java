@@ -70,6 +70,17 @@ class SchemaTest {
                 .query(Long.class).single()).isEqualTo(1);
     }
 
+    @Test
+    void cdcPublicationCoversPostingLogAndBalances() {
+        assertThat(jdbc.sql("""
+                SELECT schemaname || '.' || tablename
+                FROM pg_publication_tables
+                WHERE pubname = 'journal_cdc'
+                ORDER BY 1
+                """).query(String.class).list())
+                .containsExactly("journal.balance", "journal.transaction");
+    }
+
     private List<Map.Entry<String, String>> columns(String table) {
         return jdbc.sql("""
                 SELECT column_name, data_type || ':' || is_nullable AS spec

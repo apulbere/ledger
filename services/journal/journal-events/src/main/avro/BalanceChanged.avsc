@@ -1,0 +1,16 @@
+{
+  "type": "record",
+  "name": "BalanceChanged",
+  "namespace": "ledger.journal.events",
+  "doc": "A customer balance after one posting changed it. Value of topic ledger.journal.balance, keyed by BalanceKey. Self-contained: totals, not deltas. Field names are the balance table's column names.",
+  "fields": [
+    {"name": "account_id", "type": "string"},
+    {"name": "currency", "type": "string", "doc": "ISO 4217 alphabetic code."},
+    {"name": "version", "type": "long", "doc": "Starts at 1, increases by exactly 1 per posting touching this balance; delivered in this order per key."},
+    {"name": "last_transaction_id", "type": "string", "doc": "Id of the posting that produced this state; joins to TransactionPosted.id."},
+    {"name": "available_debit", "type": "long", "doc": "Minor units. Available balance is available_credit - available_debit."},
+    {"name": "available_credit", "type": "long"},
+    {"name": "held_debit", "type": "long", "doc": "Minor units. Held balance is held_credit - held_debit."},
+    {"name": "held_credit", "type": "long"}
+  ]
+}
