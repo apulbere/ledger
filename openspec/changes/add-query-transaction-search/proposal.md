@@ -8,18 +8,18 @@
 
 - `query` consumes `ledger.journal.transaction` and `ledger.journal.balance` (Avro, Schema Registry) from the earliest offset and keeps two projections in its own `query` schema:
   - every recorded posting, indexed by every account id its entries touch (customer and internal accounts);
-  - the current state of every customer balance per account and currency (latest `version` wins). Stored only; no balance endpoint in this change.
-- Ingestion is idempotent and order-tolerant: a redelivered posting or balance event changes nothing, and an older balance version never overwrites a newer one. A malformed event stops consumption of its partition (retried, never skipped) instead of silently losing a posting.
+  - every version of every customer balance per account and currency, linked to the posting that produced it (current balance = highest `version`), so a later change can serve the current balance and the balance at a transaction. Stored only; no balance endpoint in this change.
+- Ingestion is idempotent and order-tolerant: a redelivered posting or balance version changes nothing, and a late older version never changes the current balance. A malformed event stops consumption of its partition (retried, never skipped) instead of silently losing a posting.
 - `query` exposes `GET /accounts/{accountId}/transactions`: postings that touched the account, newest `occurredAt` first, optionally filtered by `currency` and an `occurredAt` range, with cursor-based paging (`limit` ≤ 100). Each item has the same shape as the journal's recorded posting. Results are eventually consistent with the journal.
 - `query` gets a hand-written OpenAPI contract (`query-app/src/main/openapi/openapi.yaml`), validated against real traffic in tests, and is published through the gateway (`/query/...`) and its Swagger UI.
 - `docker-compose.yml`: `query-app` gets Kafka and Schema Registry settings; gateway and Swagger UI gain the `query` service.
-- Out of scope: balance inquiry REST, search by anything other than account id (e.g. `referenceId`), balance history, changes to the journal or its event contract.
+- Out of scope: balance REST (current or at a transaction), search by anything other than account id (e.g. `referenceId`), changes to the journal or its event contract.
 
 ## Capabilities
 
 ### New Capabilities
 - `query/transaction-search`: ingesting recorded postings from the journal's change events and searching them by account id over REST — filters, ordering, paging, response shape, consistency and duplicate handling.
-- `query/account-balances`: the read side's projection of current customer balances per account and currency, built from balance change events — idempotent, version-ordered. Later balance inquiry will extend this capability.
+- `query/account-balances`: the read side's history of customer balances per account and currency, every version linked to its posting, built from balance change events — idempotent, current balance = highest version. Later balance inquiry (current and at a transaction) will extend this capability.
 
 ### Modified Capabilities
 <!-- none: the journal's posting, balance and change-event behaviour is unchanged -->
@@ -34,4 +34,4 @@
 ## Docs impact
 
 - System: update `docs/architecture/containers.md` — `query` now consumes both journal topics from Kafka (and Schema Registry) and is reached through the gateway.
-- Component: create `services/query/docs/data-model.md` (ER of the posting, account index and balance projections), `services/query/docs/ingestion.md` (sequence from topics to projections) and `services/query/docs/transaction-search.md` (search read path), and add them to the `docs/README.md` index.
+- Component: create `services/query/docs/data-model.md` (ER of the posting, account index and balance version projections), `services/query/docs/ingestion.md` (sequence from topics to projections) and `services/query/docs/transaction-search.md` (search read path), and add them to the `docs/README.md` index.

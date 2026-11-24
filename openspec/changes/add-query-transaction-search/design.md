@@ -14,7 +14,7 @@
 - Contract-first REST for `query`, validated in tests the same way as `journal`.
 
 **Non-Goals:**
-- Balance REST, balance history, search by `referenceId` or other fields.
+- Balance REST (current or at a transaction), search by `referenceId` or other fields.
 - Consumer lag monitoring, alerting on a blocked partition, a dead-letter topic.
 - Running Debezium in `query`'s tests: the journal's CDC test proves the connector output matches `journal-events`.
 
@@ -93,20 +93,23 @@ erDiagram
         timestamptz occurred_at "copied from the posting: search order and range filter in one index"
         char_3_array currencies "currencies of this account's entries in the posting"
     }
-    BALANCE {
+    BALANCE_VERSION {
         text account_id PK "customer only"
         char currency PK
+        bigint version PK "every version kept; current balance = highest"
         bigint available_debit
         bigint available_credit
         bigint held_debit
         bigint held_credit
-        bigint version "highest consumed; lower or equal versions ignored"
-        uuid last_transaction_id "no FK: no order between the two topics"
+        uuid last_transaction_id "indexed: balances right after a posting; no FK, no order between the two topics"
     }
     TRANSACTION ||--|{ ACCOUNT_TRANSACTION : "one row per distinct account in entries"
+    TRANSACTION ||..o{ BALANCE_VERSION : "produced"
 ```
 
-Index `(account_id, occurred_at DESC, transaction_id DESC)` on `account_transaction` serves search order, range and cursor. No `idempotency_key` column: nothing reads it.
+Index `(account_id, occurred_at DESC, transaction_id DESC)` on `account_transaction` serves search order, range and cursor. Index on `balance_version (last_transaction_id)` serves the later balance-at-transaction read; the primary key serves the current balance (highest version). No `idempotency_key` column: nothing reads it.
+
+**0. Balance history, not a current-balance row.** One row per balance version keeps everything a later balance-at-transaction read needs: the balances a posting changed are the rows with its `last_transaction_id`. The current balance is the highest version, one primary-key index probe. *Alternative: a current-balance table plus a history table* — rejected: two writes per event for a lookup the primary key already answers. A balance a posting did not change is answered by that balance's latest version before the posting, which needs a commit-order definition: left to the later change.
 
 **1. One index row per account and posting, currencies as an array.** Search without a currency filter is the common case and needs each posting once; one row per (account, posting) makes that a plain index range scan with keyset paging. The currency filter is `currencies @> ARRAY[:currency]`, applied while walking the same index. *Alternative: one row per (account, currency, posting)* — rejected: unfiltered search would need `DISTINCT` over rows sharing a posting, which breaks a simple keyset. Cost: a currency filter on an account active in many currencies scans the non-matching rows too; customer accounts are mostly single-currency and internal accounts are named per currency.
 
@@ -120,7 +123,7 @@ Index `(account_id, occurred_at DESC, transaction_id DESC)` on `account_transact
 
 **6. Commit offsets after the database commit; writes are idempotent.** Each record is processed in one database transaction; Spring Kafka acknowledges it only after the listener returns (record ack mode). A crash between commit and acknowledgement redelivers the record, which the writes absorb:
 - posting: `INSERT … ON CONFLICT (id) DO NOTHING`; account rows only when the posting row was inserted;
-- balance: `INSERT … ON CONFLICT (account_id, currency) DO UPDATE … WHERE balance.version < excluded.version`.
+- balance: `INSERT … ON CONFLICT (account_id, currency, version) DO NOTHING`; a late older version is simply another row and never changes which version is highest.
 
 *Alternative: Kafka transactions / exactly-once* — not applicable across Kafka and Postgres; idempotent sinks are simpler.
 
@@ -143,7 +146,7 @@ sequenceDiagram
             Q->>DB: one index row per distinct account in entries
         end
     else balance
-        Q->>DB: upsert only if version is higher
+        Q->>DB: insert balance version, ignore if already held
     end
     Q->>DB: commit
     Q->>K: commit offset
@@ -172,7 +175,7 @@ sequenceDiagram
 
 **10. Plain JDBC.** Same as `journal`: `spring-boot-starter-jdbc` with hand-written SQL. Upserts with version guards and keyset queries are clearer in SQL than through an ORM.
 
-**11. Tests without Debezium.** Testcontainers Postgres, Kafka (`apache/kafka`) and Schema Registry (`cp-schema-registry`, generic container). A test producer registers the `journal-events` schemas under the topic subjects and writes wire-format records. This covers ingestion (duplicates, stale versions, replay from earliest, poison record blocking) and search end to end inside `query`. A compose smoke check covers the real chain.
+**11. Tests without Debezium.** Testcontainers Postgres, Kafka (`apache/kafka`) and Schema Registry (`cp-schema-registry`, generic container). A test producer registers the `journal-events` schemas under the topic subjects and writes wire-format records. This covers ingestion (duplicates, late versions, replay from earliest, poison record blocking) and search end to end inside `query`. A compose smoke check covers the real chain.
 
 **12. Compose and gateway.** `query-app` gets `KAFKA_BOOTSTRAP_SERVERS=kafka:29092` and `SCHEMA_REGISTRY_URL=http://schema-registry:8081`; local defaults point at the host ports (9092, 8085). The gateway routes `/query/` to `query-app:8081` (prefix stripped) and Swagger UI lists `query.yaml`.
 
@@ -181,6 +184,7 @@ sequenceDiagram
 - [A poison event blocks its topic forever] → intended (no silent gaps); visible in logs; a fix is a code or contract change followed by restart. Alerting left to a later change.
 - [Wiping query's database without resetting the consumer group leaves projections empty] → `docker compose down -v` resets Kafka too; the group id is configurable, so a rebuild can use a new group. Documented in the README.
 - [Search lags the journal; a client that just posted may not find it] → allowed by the spec (eventual); lag is typically sub-second locally.
+- [`balance_version` grows by one row per balance change] → bounded by postings (at most one row per customer balance a posting touches); the history is what makes balance-at-transaction possible.
 - [Hot internal accounts (e.g. settlement) accumulate many index rows] → keyset paging keeps each page an index range scan regardless of size.
 - [Backdated postings ingested during a paging walk can be missed by that walk] → accepted by the spec; restarting the walk sees them.
 - [Contract duplicated between journal and query OpenAPI documents] → tests in `query` assert item shape against the journal's REST shape fixtures.

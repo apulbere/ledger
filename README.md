@@ -36,6 +36,15 @@ customer balances to the `ledger.journal.transaction` and `ledger.journal.balanc
 which only runs on an empty volume: a volume created before the connector existed needs `docker compose down -v`.
 
 The gateway at http://localhost:8090 serves Swagger UI with every service's hand-written OpenAPI contract,
-and each service's API under its prefix (`/journal/...`), so "Try it out" works from the browser.
+and each service's API under its prefix (`/journal/...`, `/query/...`), so "Try it out" works from the browser.
+
+`query` consumes both topics from the start and searches postings by account, a few moments after they are recorded:
+
+```sh
+curl 'localhost:8090/query/accounts/cus_01jcz8k2m4f7r9t3vbx5w6y8za/transactions?currency=EUR&limit=10'
+```
+
+Its projections are rebuilt by replaying the topics: to rebuild them after wiping only query's database, also start
+from a new consumer group (`KAFKA_GROUP_ID`, default `query`), since the old group would resume where it stopped.
 
 Docs: [docs/README.md](docs/README.md). Changes are planned with OpenSpec in `openspec/`.
