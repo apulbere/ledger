@@ -20,4 +20,6 @@ sequenceDiagram
     Note over D,K: Connect creates the topics with infinite retention, broker auto-create is off
     D->>DB: confirm position after Kafka acknowledged
     Note over D,DB: unconfirmed WAL is kept and resent after a restart: at least once
+    Note over D,DB: a stopped connector pins WAL up to max_slot_wal_keep_size, then the slot is lost and needs a new snapshot
+    Note over D,SR: registered schemas carry connect.* properties: the contract test compares canonical forms
 ```
